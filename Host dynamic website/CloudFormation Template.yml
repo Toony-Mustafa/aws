@@ -1,0 +1,69 @@
+---
+Parameters:
+# Adding Security Group Description
+  SecurityGroupDescription:
+    Description: Security Group Description
+    Type: String
+# Adding Admin public IP
+  AdminPublicIP:
+    Description: AdminPublicIP 
+    Type: String
+
+Resources:
+  MyInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: us-east-1a
+      ImageId: ami-0a8b4cd432b1c3063
+      InstanceType: t2.micro
+  # Installing  LAMP MariaDB, PHP, Apache and git
+  # cloning the repo and copy content of website to www     
+      UserData:
+          Fn::Base64: !Sub |
+             #!/bin/bash
+             sudo yum update -y
+             sudo amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
+             sudo yum install -y httpd mariadb-server 
+             sudo systemctl start httpd 
+             sudo systemctl enable httpd
+             sudo yum install git -y
+             sudo git clone https://github.com/StartBootstrap/startbootstrap-freelancer.git
+             sudo cp -a startbootstrap-freelancer/dist/. /var/www/html/
+      SecurityGroups:
+        - !Ref SSHSecurityGroup
+        - !Ref ServerSecurityGroup
+      KeyName: "EC2"
+  
+  # First EC2 security group to allow SSH only from Admin IP
+  SSHSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via port 22 for Admin Public IP
+      SecurityGroupIngress:
+      - CidrIp: !Sub '${AdminPublicIP}/32'
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+
+  # Second EC2 security group to allow HTTP, HTTPS
+  ServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP, HTTPS access via port 80, 443 for the internet
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+Outputs:
+  InstanceDNSName:
+    Description: The DNSName of the Instance
+    Value: !GetAtt MyInstance.PublicDnsName
+  InstancePublicIP:
+    Description: The Public IP of the Instance
+    Value: !GetAtt MyInstance.PublicIp
+  
